@@ -50,10 +50,11 @@ def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right
         left_index_list.append(0)
 
         # if two notes can be played by the same finger, group them together as a single index
+        # thumb can play consecutive black or white keys, other fingers just white
         i = 1
         while i < len(left_hand_notes):
             if (abs(left_hand_notes[i].pitch.midi - left_hand_notes[i - 1].pitch.midi) < 3):
-                if (0 == left_hand_notes[i].pitch.alter == left_hand_notes[i - 1].pitch.alter) or (i == len(left_hand_notes) - 2 and left_hand_notes[i].pitch.alter == left_hand_notes[i - 1].pitch.alter):
+                if (0 == left_hand_notes[i].pitch.alter == left_hand_notes[i - 1].pitch.alter) or (i == len(left_hand_notes) - 2 and left_hand_notes[i].pitch.alter == left_hand_notes[i + 1].pitch.alter):
                     i += 1
             left_index_list.append(i)
             i += 1
@@ -91,6 +92,8 @@ def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right
                 if note_object.pitch == lastNote.pitch:
                     return left_possible, False, left_tie_issue, note_object.pitch
 
+    # if two notes can be played by the same finger, group them together as a single index
+    # thumb can play consecutive black or white keys, other fingers just white
     i = 0
     while i < len(right_hand_notes) - 1:
         right_index_list.append(i)
