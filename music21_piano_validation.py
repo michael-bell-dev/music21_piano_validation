@@ -67,6 +67,9 @@ def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right
         # check if second and fourth finger are too far apart
         elif(len(left_index_list) > 3) and (abs(left_hand_notes[left_index_list[1]].pitch.midi - left_hand_notes[left_index_list[-2]].pitch.midi) > 8):
             left_possible = False
+        # check if thumb and pinky are max distance but different colors
+        elif(abs(left_hand_notes[-1].pitch.midi - left_hand_notes[0].pitch.midi) == MAX_INTERVAL and left_hand_notes[0].pitch.alter != left_hand_notes[-1].pitch.alter):
+            left_possible = False
         # check if pinky is too far away from other fingers
         else:
             for i in range(1, len(left_index_list)):
@@ -111,6 +114,9 @@ def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right
         right_possible = False
     # check if second and fourth finger are too far apart
     elif(len(right_index_list) > 3) and (abs(right_hand_notes[right_index_list[1]].pitch.midi - right_hand_notes[right_index_list[-2]].pitch.midi) > 8):
+        right_possible = False
+    # check if thumb and pinky are max distance but different colors
+    elif(abs(right_hand_notes[-1].pitch.midi - right_hand_notes[0].pitch.midi) == MAX_INTERVAL and right_hand_notes[0].pitch.alter != right_hand_notes[-1].pitch.alter):
         right_possible = False
     # check if pinky is too far away from other fingers
     else:
