@@ -68,7 +68,7 @@ def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right
         elif(len(left_index_list) > 3) and (abs(left_hand_notes[left_index_list[1]].pitch.midi - left_hand_notes[left_index_list[-2]].pitch.midi) > 8):
             left_possible = False
         # check if thumb and pinky are max distance but different colors
-        elif(abs(left_hand_notes[-1].pitch.midi - left_hand_notes[0].pitch.midi) == MAX_INTERVAL and left_hand_notes[0].pitch.alter != left_hand_notes[-1].pitch.alter):
+        elif(len(left_hand_notes) > 0 and abs(left_hand_notes[-1].pitch.midi - left_hand_notes[0].pitch.midi) == MAX_INTERVAL and left_hand_notes[0].pitch.alter != left_hand_notes[-1].pitch.alter):
             left_possible = False
         # check if pinky is too far away from other fingers
         else:
@@ -116,7 +116,7 @@ def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right
     elif(len(right_index_list) > 3) and (abs(right_hand_notes[right_index_list[1]].pitch.midi - right_hand_notes[right_index_list[-2]].pitch.midi) > 8):
         right_possible = False
     # check if thumb and pinky are max distance but different colors
-    elif(abs(right_hand_notes[-1].pitch.midi - right_hand_notes[0].pitch.midi) == MAX_INTERVAL and right_hand_notes[0].pitch.alter != right_hand_notes[-1].pitch.alter):
+    elif(len(right_hand_notes) > 0 and abs(right_hand_notes[-1].pitch.midi - right_hand_notes[0].pitch.midi) == MAX_INTERVAL and right_hand_notes[0].pitch.alter != right_hand_notes[-1].pitch.alter):
         right_possible = False
     # check if pinky is too far away from other fingers
     else:
@@ -480,3 +480,4 @@ else:
         print("\nPiece can be played by a piano.\n")
     else:
         print("\nPiece cannot be played by a piano.\n")
+
