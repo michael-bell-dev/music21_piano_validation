@@ -1,21 +1,10 @@
 from sys import argv, platform
 from music21 import *
+from copy import deepcopy
+import spacing_checker
 
-MAX_INTERVAL = 16  # maximum interval in semitones between the lowest and highest note one hand can play
 COLOR_ERROR = '#ED1111'
 COLOR_CORRECT = '#000000'
-
-# copies a list of notes in replacement of copy.deepcopy()
-# returns: new_notes
-def copy_notes(notes):
-    new_notes = []
-    for n in notes:
-        new_note = note.Note(n.pitch)
-        new_note.quarterLength = n.quarterLength
-        new_note.tie = n.tie
-        new_note.style.color = n.style.color
-        new_notes.append(new_note)
-    return new_notes
 
 # colors notes red to indicate they are impossible to play
 # colors notes black to indicate they are possible to play
@@ -25,116 +14,39 @@ def color_notes(left_hand_notes, right_hand_notes, color):
     for note_object in right_hand_notes:
         note_object.style.color = color
 
-# checks if notes are possible to play based on the notes and their spacing
-# I am aware that this function is very much based on the size of my own hands.
-# Future versions should allow the user to input their own hand size parameters.
-# Also this should probably be refactored to do one hand at a time; I tried once but I broke it
-# returns: left_possible, right_possible, left_tie_issue, right_tie_issue
-def check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes):
-    
-    # LEFT HAND
-
-    left_possible = True
-    left_index_list = []
-    left_tie_issue = None
-
-    # check if a note played in the left hand is tied from a note played in the right hand
-    for note_object in left_hand_notes:
+# checks that tied notes do not connect to the other hand's part
+# returns: tie_issue.pitch
+def check_ties(notes, last_other_notes):
+    for note_object in notes:
         if note_object.tie is not None and (note_object.tie.type == 'continue' or note_object.tie.type == 'stop'):
-            for lastNote in last_right_notes:
+            for lastNote in last_other_notes:
                 if note_object.pitch == lastNote.pitch:
-                    left_possible = False
-                    left_tie_issue = note_object.pitch
+                    return note_object.pitch
+    return None
 
-    if left_possible and len(left_hand_notes) > 0:
-        left_index_list.append(0)
-
-        # if two notes can be played by the same finger, group them together as a single index
-        # thumb can play consecutive black or white keys, other fingers just white
-        i = 1
-        while i < len(left_hand_notes):
-            if (abs(left_hand_notes[i].pitch.midi - left_hand_notes[i - 1].pitch.midi) < 3):
-                if (0 == left_hand_notes[i].pitch.alter == left_hand_notes[i - 1].pitch.alter) or (i == len(left_hand_notes) - 2 and left_hand_notes[i].pitch.alter == left_hand_notes[i + 1].pitch.alter):
-                    i += 1
-            left_index_list.append(i)
-            i += 1
-        if len(left_hand_notes) == left_index_list[-1]:
-            left_index_list = left_index_list[:-1]
-
-        # check if there are too many fingers
-        if(len(left_index_list) > 5):
-            left_possible = False
-        # check if second and fourth finger are too far apart
-        elif(len(left_index_list) > 3) and (abs(left_hand_notes[left_index_list[1]].pitch.midi - left_hand_notes[left_index_list[-2]].pitch.midi) > 8):
-            left_possible = False
-        # check if thumb and pinky are max distance but different colors
-        elif(len(left_hand_notes) > 0 and abs(left_hand_notes[-1].pitch.midi - left_hand_notes[0].pitch.midi) == MAX_INTERVAL and left_hand_notes[0].pitch.alter != left_hand_notes[-1].pitch.alter):
-            left_possible = False
-        # check if pinky is too far away from other fingers
-        else:
-            for i in range(1, len(left_index_list)):
-                if i > 1 and i != len(left_index_list) - 1:
-                    if abs(left_hand_notes[0].pitch.midi - left_hand_notes[left_index_list[i]].pitch.midi) >= ((5 - len(left_index_list)) + i) * 4:
-                        left_possible = False
-                        break
-                else:
-                    if abs(left_hand_notes[0].pitch.midi - left_hand_notes[left_index_list[i]].pitch.midi) > ((5 - len(left_index_list)) + i) * 4:
-                        left_possible = False
-                        break
-
-
-    # RIGHT HAND
-    
-    right_possible = True
-    right_index_list = []
-    
-    # check if a note played in the right hand is tied from a note played in the left hand
-    for note_object in right_hand_notes:
-        if note_object.tie is not None and (note_object.tie.type == 'continue' or note_object.tie.type == 'stop'):
-            for lastNote in last_left_notes:
-                if note_object.pitch == lastNote.pitch:
-                    return left_possible, False, left_tie_issue, note_object.pitch
-
-    # if two notes can be played by the same finger, group them together as a single index
-    # thumb can play consecutive black or white keys, other fingers just white
+# makes sure no notes are too far away from each other based on the user's finger constraints
+# return: hand_is_possible
+def check_spacing(notes, constraints):
+    index_list = []
     i = 0
-    while i < len(right_hand_notes) - 1:
-        right_index_list.append(i)
-        if (abs(right_hand_notes[i].pitch.midi - right_hand_notes[i + 1].pitch.midi) < 3):
-            if (0 == right_hand_notes[i].pitch.alter == right_hand_notes[i + 1].pitch.alter) or (i == 0 and right_hand_notes[i].pitch.alter == right_hand_notes[i + 1].pitch.alter):
+    while i < len(notes) - 1:
+        index_list.append(i)
+        if (abs(notes[i].pitch.midi - notes[i + 1].pitch.midi) < 3):
+            if (0 == notes[i].pitch.alter == notes[i + 1].pitch.alter) or (i == 0 and notes[i].pitch.alter == notes[i + 1].pitch.alter):
                 i += 1
         i += 1
     # add last index and remove second to last if it was grouped with the last
-    if len(right_index_list) > 0 and right_index_list[-1] == i - 1:
-        right_index_list.pop()
-    right_index_list.append(len(right_hand_notes) - 1)
+    if len(index_list) > 0 and index_list[-1] == i - 1:
+        index_list.pop()
+    index_list.append(len(notes) - 1)
 
-    # check if there are too many fingers
-    if(len(right_index_list) > 5):
-        right_possible = False
-    # check if second and fourth finger are too far apart
-    elif(len(right_index_list) > 3) and (abs(right_hand_notes[right_index_list[1]].pitch.midi - right_hand_notes[right_index_list[-2]].pitch.midi) > 8):
-        right_possible = False
-    # check if thumb and pinky are max distance but different colors
-    elif(len(right_hand_notes) > 0 and abs(right_hand_notes[-1].pitch.midi - right_hand_notes[0].pitch.midi) == MAX_INTERVAL and right_hand_notes[0].pitch.alter != right_hand_notes[-1].pitch.alter):
-        right_possible = False
-    # check if pinky is too far away from other fingers
-    else:
-        for i in range(0, len(right_index_list) - 1):
-            if i in (1, 2):
-                if abs(right_hand_notes[-1].pitch.midi - right_hand_notes[right_index_list[i]].pitch.midi) >= (4 - i) * 4:
-                    right_possible = False
-                    break
-            else:
-                if abs(right_hand_notes[-1].pitch.midi - right_hand_notes[right_index_list[i]].pitch.midi) > (4 - i) * 4:
-                    right_possible = False
-                    break
-
-    return left_possible, right_possible, left_tie_issue, None
+    # custom function in spacing_checker.py
+    return spacing_checker.check_constraints(notes, constraints, index_list)
+    
 
 # check if either hand has notes that are impossible to play and attempt to fix them
 # returns: left_hand_notes, right_hand_notes, success, left_tie_issue, right_tie_issue
-def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes):
+def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes, constraints):
     left_possible = False
     right_possible = False
     left_prev = True
@@ -144,13 +56,24 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
     last_left_tie_issue = None
     last_right_tie_issue = None
 
+    left_hand_notes.reverse()
+
     # iteratively try to fix problems with each hand until both hands are possible or they cannot be fixed.
     while not left_possible or not right_possible or tie_issue:
-        left_possible, right_possible, left_tie_issue, right_tie_issue = check_spacing(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes)
-        if left_tie_issue is None and right_tie_issue is None:
-            tie_issue = False
+        tie_issue = False
+        left_tie_issue = check_ties(left_hand_notes, last_right_notes)
+        if left_tie_issue is None:
+            left_possible = check_spacing(left_hand_notes, constraints)
         else:
             tie_issue = True
+            left_possible = False
+
+        right_tie_issue = check_ties(right_hand_notes, last_left_notes)
+        if right_tie_issue is None:
+            right_possible = check_spacing(right_hand_notes, constraints)
+        else:
+            tie_issue = True
+            right_possible = False
 
         # prevent back and forth infinite loop
         if left_possible != left_prev and right_possible != right_prev:
@@ -171,27 +94,11 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
                     return left_hand_notes, right_hand_notes, False, last_left_tie_issue, last_right_tie_issue
                 elif tie_issue:
                     tie_loop = True
-            
-            # attempt to fix the left hand by moving the highest note to the right hand
-            # make sure right hand can still play the notes
-            if len(right_hand_notes) == 0:
-                right_hand_notes.insert(0, left_hand_notes.pop())
-            elif abs(left_hand_notes[-1].pitch.midi - right_hand_notes[-1].pitch.midi) > MAX_INTERVAL and not tie_issue:
-                color_notes(left_hand_notes, right_hand_notes, COLOR_ERROR)
-                return left_hand_notes, right_hand_notes, False, None, None
-            else:
-                right_hand_notes.insert(0, left_hand_notes.pop())
+                
+            right_hand_notes.insert(0, left_hand_notes.pop(0))
             
         elif not right_possible:
-            # attempt to fix the right hand by moving the lowest note to the right hand
-            # make sure left hand can still play the notes
-            if len(left_hand_notes) == 0:
-                left_hand_notes.append(right_hand_notes.pop(0))
-            elif abs(left_hand_notes[0].pitch.midi - left_hand_notes[-1].pitch.midi) > MAX_INTERVAL and not tie_issue:
-                color_notes(left_hand_notes, right_hand_notes, COLOR_ERROR)
-                return left_hand_notes, right_hand_notes, False, None, None
-            else:
-                left_hand_notes.append(right_hand_notes.pop(0))
+            left_hand_notes.insert(0, right_hand_notes.pop(0))
         
         last_left_tie_issue = left_tie_issue
         last_right_tie_issue = right_tie_issue
@@ -200,7 +107,7 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
     return left_hand_notes, right_hand_notes, True, None, None
 
 # If a chord is impossible due to ties, attempt to switch tied notes between hands to fix it
-def switch_ties(destination_hand, problem_hand, tie_issue, measure_number):
+def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, constraints):
     overall_success = True
     cur_measure_number = measure_number
     should_return = False
@@ -232,19 +139,11 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number):
                     if elements[chord_index].isRest:
                         elements[chord_index] = chord.Chord()
                         elements[chord_index].quarterLength = problem_note_object.quarterLength
-                        new_note = note.Note()
-                        new_note.pitch = problem_note_object.pitch
-                        new_note.quarterLength = problem_note_object.quarterLength
-                        elements[chord_index].add(new_note)
-                    else:
-                        new_note = note.Note()
-                        new_note.pitch = problem_note_object.pitch
-                        new_note.quarterLength = problem_note_object.quarterLength
-                        elements[chord_index].add(new_note)
+                    elements[chord_index].add(deepcopy(problem_note_object))
                     
                     # check possible chords and recolor accordingly
-                    destination_possible, problem_possible, _, _ = check_spacing(elements[chord_index].notes, problem_chord_object.notes, [], [])
-                    if not destination_possible or not problem_possible:
+                    destination_possible = check_spacing(elements[chord_index].notes, constraints)
+                    if not destination_possible:
                         color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_ERROR)
                         overall_success = False
                         new_errors += 1
@@ -254,7 +153,7 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number):
                     # flipped set to true when all chords with tie have been flipped
                     if problem_note_object.tie is not None and problem_note_object.tie.type == 'start':
                         if new_errors > old_errors:
-                            _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number)
+                            _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints)
                         return overall_success
                     
                     should_return = False
@@ -285,7 +184,7 @@ def find_split_point(chord_object):
 
 # main function to check if piece can be played by a piano
 # returns: overall_success
-def check_playability(combined, right_hand, left_hand):
+def check_playability(combined, right_hand, left_hand, constraints):
     overall_success = True
 
     last_left_notes = []
@@ -318,14 +217,14 @@ def check_playability(combined, right_hand, left_hand):
             # assign notes to left and right parts
             # single note chords (not really chords but whatever) are played by the right hand
             left_hand_notes, right_hand_notes = find_split_point(chord_object)
-            
+
             # make sure both hands can actually play the notes they have
-            left_hand_notes, right_hand_notes, success, left_tie_issue, right_tie_issue = adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes)
+            left_hand_notes, right_hand_notes, success, left_tie_issue, right_tie_issue = adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes, constraints)
 
             # deep copy notes to avoid reference issues
             # notes from both hands are references to the same chord object which causes problems later
-            left_hand_notes = copy_notes(left_hand_notes)
-            right_hand_notes = copy_notes(right_hand_notes)
+            left_hand_notes = deepcopy(left_hand_notes)
+            right_hand_notes = deepcopy(right_hand_notes)
             
             # insert notes into respective measures
             if left_hand_notes == []:
@@ -351,14 +250,14 @@ def check_playability(combined, right_hand, left_hand):
                 # checks if failure is due to a tied note being forced into one hand by seeing if the
                 # previous tied notes can be switched to the other hand to fix the issue
                 if left_tie_issue is not None:
-                    print(f"Switching tied note {left_tie_issue} in measure {measure.number} from right hand to left hand. Other chords may become impossible in the process.")
-                    overall_success = switch_ties(left_hand, right_hand, left_tie_issue, measure.number) and overall_success
+                    print(f'Switching tied note {left_tie_issue} in measure {measure.number} from right hand to left hand. Other chords may become impossible in the process.')
+                    overall_success = switch_ties(left_hand, right_hand, left_tie_issue, measure.number, constraints) and overall_success
                 elif right_tie_issue is not None:
-                    print(f"Switching tied note {right_tie_issue} in measure {measure.number} from left hand to right hand. Other chords may become impossible in the process.")
-                    overall_success = switch_ties(right_hand, left_hand, right_tie_issue, measure.number) and overall_success
+                    print(f'Switching tied note {right_tie_issue} in measure {measure.number} from left hand to right hand. Other chords may become impossible in the process.')
+                    overall_success = switch_ties(right_hand, left_hand, right_tie_issue, measure.number, constraints) and overall_success
                 else:
                     overall_success = False
-                    print(f"Impossible chord - Measure: {measure.number} Offset: {chord_object.offset}")
+                    print(f'Impossible chord - Measure: {measure.number} Offset: {chord_object.offset}')
             
             last_left_notes = left_chord.notes
             last_right_notes = right_chord.notes
@@ -405,6 +304,36 @@ def fix_ties_and_rests(part):
                 measure.remove(rests[i])
                 rests = measure.getElementsByClass(note.Rest)
             i -= 1
+
+# reads finger_constraint file and creates list of constraints
+# returns: [[finger1, finger2, max_distance, max_can_be_different_colors], [...], ...]
+def create_constraints(file):
+    constraints = []
+    finger_map = {
+        'thumb': 0,
+        'index': 1,
+        'middle': 2,
+        'ring': 3,
+        'pinky': 4
+    }
+    with open(file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            parts = line.split(',')
+
+            finger1 = finger_map[parts[0].strip().strip('\'')]
+            finger2 = finger_map[parts[1].strip().strip('\'')]
+
+            max_distance = int(parts[2].split('=')[1].strip())
+            max_can_be_different_colors = parts[3].split('=')[1].strip()
+            max_can_be_different_colors = True if max_can_be_different_colors == 'True' else False
+
+            constraints.append([finger1, finger2, max_distance, max_can_be_different_colors])
+
+    return constraints
         
 
 # set up the environment
@@ -421,11 +350,14 @@ env = environment.Environment()
 env['musicxmlPath'] = path
 
 argc = len(argv)
-if argc < 3:
-    print('arguments: [input file] [output name (no extension)]')
+if argc < 4:
+    print('arguments: [original score file] [output name (no extension)] [finger constraint file]')
 else:
+    print('Reading finger constraints...')
+    constraints = create_constraints(argv[3])
+
     song = converter.parse(argv[1])
-    print(f"\nStarting at {len(song.parts)} parts...\n")
+    print(f'\nStarting at {len(song.parts)} parts...\n')
 
     # combine all parts into one PartStaff
     combined = song.chordify()
@@ -435,7 +367,7 @@ else:
     left_hand = combined.template()
     
     # main function
-    success = check_playability(combined, right_hand, left_hand)
+    success = check_playability(combined, right_hand, left_hand, constraints)
 
     # create empty final score
     final = stream.Score()
@@ -475,9 +407,8 @@ else:
     final.parts[1].partName = 'Pno'
 
     # write output file
-    final.write("musicxml", argv[2] + '.musicxml')
+    final.write('musicxml', argv[2] + '.musicxml')
     if success:
-        print("\nPiece can be played by a piano.\n")
+        print('\nPiece can be played by a piano.\n')
     else:
-        print("\nPiece cannot be played by a piano.\n")
-
+        print('\nPiece cannot be played by a piano.\n')
