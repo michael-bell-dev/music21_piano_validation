@@ -1,4 +1,4 @@
-To run this program, python 3.9+ or higher is required, as well as the Music21 library. Install using pip: pip install music21. To view the .musicxml output files, MuseScore should be installed.
+To run this program, python 3.9 or higher is required, as well as the Music21 library. Install using pip: pip install music21. To view the .musicxml output files, MuseScore should be installed.
 
 Use the following format to run the program:  
 python music21_piano_validation.py *(file_path to .xml, .mxl, or .musicxml file)* (*output_file name without extension*) *(file_path to finger_constraint text file)*  
