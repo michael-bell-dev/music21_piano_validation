@@ -350,11 +350,15 @@ env = environment.Environment()
 env['musicxmlPath'] = path
 
 argc = len(argv)
-if argc < 4:
-    print('arguments: [original score file] [output name (no extension)] [finger constraint file]')
+if argc < 3:
+    print('arguments: [original score file] [output name (no extension)] optional: [finger constraint file]')
 else:
-    print('Reading finger constraints...')
-    constraints = create_constraints(argv[3])
+    if argc > 3:
+        print('Reading finger constraints...')
+        constraints = create_constraints(argv[3])
+    else:
+        print('No constraints specified')
+        constraints = []
 
     song = converter.parse(argv[1])
     print(f'\nStarting at {len(song.parts)} parts...\n')
