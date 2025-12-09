@@ -26,17 +26,10 @@ def check_ties(notes, last_other_notes):
 # checks the number of fingers and checks the distances between each one, comparing to user constraints
 # returns: hand_is_possible
 def check_constraints(notes, constraints, index_list):
-    # impossible if number of fingers required is greater than 5
-    if len(index_list) > 5:
-        return False
-    
-    # definitely possible if number if fingers required is 0 or 1
-    if len(index_list) < 2:
-        return True
-    
-    two = False
     if len(index_list) == 2:
         two = True
+    else:
+        two = False
 
     # check finger distance constraints when all fingers are in use
     if len(index_list) == 5 or two:
@@ -153,6 +146,14 @@ def check_spacing(notes, constraints):
     if len(index_list) > 0 and index_list[-1] == i - 1:
         index_list.pop()
     index_list.append(len(notes) - 1)
+
+    # impossible if number of fingers required is greater than 5
+    if len(index_list) > 5:
+        return False
+    
+    # definitely possible if number if fingers required is 0 or 1
+    if len(index_list) < 2:
+        return True
 
     # checks indeces using constraints
     return check_constraints(notes, constraints, index_list)
@@ -530,4 +531,3 @@ else:
         print('\nPiece can be played by a piano.\n')
     else:
         print('\nPiece cannot be played by a piano.\n')
-
