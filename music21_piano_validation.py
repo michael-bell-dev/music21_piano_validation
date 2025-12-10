@@ -142,10 +142,9 @@ def check_spacing(notes, constraints):
             if (0 == notes[i].pitch.alter == notes[i + 1].pitch.alter) or (i == 0 and notes[i].pitch.alter == notes[i + 1].pitch.alter):
                 i += 1
         i += 1
-    # add last index and remove second to last if it was grouped with the last
-    if len(index_list) > 0 and index_list[-1] == i - 1:
-        index_list.pop()
-    index_list.append(len(notes) - 1)
+    # add last index unless it is already played with the same finger as the previous note
+    if i != len(notes):
+        index_list.append(len(notes) - 1)
 
     # impossible if number of fingers required is greater than 5
     if len(index_list) > 5:
