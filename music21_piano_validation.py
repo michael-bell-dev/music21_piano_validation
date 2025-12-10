@@ -258,6 +258,9 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
                     elements[chord_index].add(deepcopy(problem_note_object))
 
             # check possible chords and recolor accordingly
+            notes_to_check = list(elements[chord_index].notes)
+            if move_up:
+                notes_to_check.reverse()
             destination_possible = check_spacing(elements[chord_index].notes, constraints)
             if not destination_possible:
                 color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_ERROR)
