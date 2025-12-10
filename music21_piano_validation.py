@@ -26,10 +26,9 @@ def check_ties(notes, last_other_notes):
 # checks the number of fingers and checks the distances between each one, comparing to user constraints
 # returns: hand_is_possible
 def check_constraints(notes, constraints, index_list):
+    two = False
     if len(index_list) == 2:
         two = True
-    else:
-        two = False
 
     # check finger distance constraints when all fingers are in use
     if len(index_list) == 5 or two:
@@ -142,9 +141,10 @@ def check_spacing(notes, constraints):
             if (0 == notes[i].pitch.alter == notes[i + 1].pitch.alter) or (i == 0 and notes[i].pitch.alter == notes[i + 1].pitch.alter):
                 i += 1
         i += 1
-    # add last index unless it is already played with the same finger as the previous note
-    if i != len(notes):
-        index_list.append(len(notes) - 1)
+    # keep pinky as final index no matter what
+    if len(index_list) > 0 and index_list[-1] == i - 2:
+        index_list.pop()
+    index_list.append(len(notes) - 1)
 
     # impossible if number of fingers required is greater than 5
     if len(index_list) > 5:
@@ -154,9 +154,9 @@ def check_spacing(notes, constraints):
     if len(index_list) < 2:
         return True
 
-    # checks indeces using constraints
+    # custom function in spacing_checker.py
     return check_constraints(notes, constraints, index_list)
-    
+
 
 # check if either hand has notes that are impossible to play and attempt to fix them
 # returns: left_hand_notes, right_hand_notes, success, left_tie_issue, right_tie_issue
@@ -199,18 +199,18 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
 
         left_prev = left_possible
         right_prev = right_possible
-        
+
         if not left_possible:
             if not right_possible:
-                # if both hands are impossible, the chord cannot be played
-                color_notes(left_hand_notes, right_hand_notes, COLOR_ERROR)
-                return left_hand_notes, right_hand_notes, False, last_left_tie_issue, last_right_tie_issue
-                
+                    # if both hands are impossible, the chord cannot be played
+                    color_notes(left_hand_notes, right_hand_notes, COLOR_ERROR)
+                    return left_hand_notes, right_hand_notes, False, last_left_tie_issue, last_right_tie_issue
+
             right_hand_notes.insert(0, left_hand_notes.pop(0))
-            
+
         elif not right_possible:
             left_hand_notes.insert(0, right_hand_notes.pop(0))
-        
+
         last_left_tie_issue = left_tie_issue
         last_right_tie_issue = right_tie_issue
 
@@ -218,7 +218,7 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
     return left_hand_notes, right_hand_notes, True, None, None
 
 # If a chord is impossible due to ties, attempt to switch tied notes between hands to fix it
-def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, constraints):
+def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, constraints, move_up):
     overall_success = True
     cur_measure_number = measure_number
     should_return = False
@@ -235,15 +235,20 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
 
         chord_index = 0
         for problem_chord_object in problem_chords:
-            if should_return:
-                return overall_success
-            should_return = True
 
+            tie_type = None
             chord_index -= 1
+
             for problem_note_object in problem_chord_object.notes:
-                if problem_note_object.pitch == tie_issue:
-                    if problem_note_object.style.color == COLOR_ERROR:
-                        old_errors += 1
+                # Note is above/below the tie issue and should be moved
+                if (problem_note_object.pitch >= tie_issue and move_up) or (problem_note_object.pitch <= tie_issue and not move_up):
+
+                    # check if this note is the tied note we are looking for
+                    if problem_note_object.pitch == tie_issue:
+                        tie_type = problem_note_object.tie.type
+                        if problem_note_object.style.color == COLOR_ERROR:
+                            old_errors += 1
+
                     # flip the note to the destination hand
                     problem_chord_object.remove(problem_note_object)
                     elements = list(destination_hand.measure(cur_measure_number).getElementsByClass((chord.Chord, note.Rest)))
@@ -251,31 +256,30 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
                         elements[chord_index] = chord.Chord()
                         elements[chord_index].quarterLength = problem_note_object.quarterLength
                     elements[chord_index].add(deepcopy(problem_note_object))
-                    
-                    # check possible chords and recolor accordingly
-                    destination_possible = check_spacing(elements[chord_index].notes, constraints)
-                    if not destination_possible:
-                        color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_ERROR)
-                        overall_success = False
-                        new_errors += 1
-                    else:
-                        color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_CORRECT)
-                    
-                    # flipped set to true when all chords with tie have been flipped
-                    if problem_note_object.tie is not None and problem_note_object.tie.type == 'start':
-                        if new_errors > old_errors:
-                            _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints)
-                        return overall_success
-                    
-                    should_return = False
-                    break
+
+            # check possible chords and recolor accordingly
+            destination_possible = check_spacing(elements[chord_index].notes, constraints)
+            if not destination_possible:
+                color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_ERROR)
+                overall_success = False
+                new_errors += 1
+            else:
+                color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_CORRECT)
+
+            # return when all chords with tie have been flipped
+            # switch back if function created more errors
+            if tie_type is not None and tie_type == 'start':
+                if new_errors > old_errors:
+                    _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints, not move_up)
+                return overall_success
+
         cur_measure_number -= 1
 
 # find the best place to split a chord into two hands
 # returns: left_hand_notes, right_hand_notes
 def find_split_point(chord_object):
     equal_ties = True
-    
+
     # split at the largest interval between notes
     if(equal_ties):
         greatest_interval = -1
@@ -287,7 +291,7 @@ def find_split_point(chord_object):
                 greatest_interval = current_interval
                 split_index = i
             i += 1
-    
+
     left_hand_notes = [chord_object.notes[i] for i in range(0, split_index + 1)]
     right_hand_notes = [chord_object.notes[i] for i in range(split_index + 1, len(chord_object.notes))]
 
@@ -321,7 +325,7 @@ def check_playability(combined, right_hand, left_hand, constraints):
             rest = note.Rest()
             rest.quarterLength = rest_object.quarterLength
             right_measure.insert(rest_object.offset, rest)
-        
+
         # traverse chords
         chords = measure.recurse().getElementsByClass(chord.Chord)
         for chord_object in chords:
@@ -336,7 +340,7 @@ def check_playability(combined, right_hand, left_hand, constraints):
             # notes from both hands are references to the same chord object which causes problems later
             left_hand_notes = deepcopy(left_hand_notes)
             right_hand_notes = deepcopy(right_hand_notes)
-            
+
             # insert notes into respective measures
             if left_hand_notes == []:
                 rest = note.Rest()
@@ -356,20 +360,20 @@ def check_playability(combined, right_hand, left_hand, constraints):
                 right_chord = chord.Chord(right_hand_notes)
                 right_chord.quarterLength = chord_object.quarterLength
                 right_measure.insert(chord_object.offset, right_chord)
-            
+
             if not success:
                 # checks if failure is due to a tied note being forced into one hand by seeing if the
                 # previous tied notes can be switched to the other hand to fix the issue
                 if left_tie_issue is not None:
                     print(f'Switching tied note {left_tie_issue} in measure {measure.number} from right hand to left hand. Other chords may become impossible in the process.')
-                    overall_success = switch_ties(left_hand, right_hand, left_tie_issue, measure.number, constraints) and overall_success
+                    overall_success = switch_ties(left_hand, right_hand, left_tie_issue, measure.number, constraints, False) and overall_success
                 elif right_tie_issue is not None:
                     print(f'Switching tied note {right_tie_issue} in measure {measure.number} from left hand to right hand. Other chords may become impossible in the process.')
-                    overall_success = switch_ties(right_hand, left_hand, right_tie_issue, measure.number, constraints) and overall_success
+                    overall_success = switch_ties(right_hand, left_hand, right_tie_issue, measure.number, constraints, True) and overall_success
                 else:
                     overall_success = False
                     print(f'Impossible chord - Measure: {measure.number} Offset: {chord_object.offset}')
-            
+
             last_left_notes = left_chord.notes
             last_right_notes = right_chord.notes
 
@@ -405,7 +409,7 @@ def fix_ties_and_rests(part):
                 measure.remove(chords[i])
                 chords = measure.getElementsByClass(chord.Chord)
             i -= 1
-        
+
         # simpler version for rests
         rests = measure.getElementsByClass(note.Rest)
         i = len(rests) - 1
