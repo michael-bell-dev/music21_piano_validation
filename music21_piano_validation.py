@@ -218,7 +218,7 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
     return left_hand_notes, right_hand_notes, True, None, None
 
 # If a chord is impossible due to ties, attempt to switch tied notes between hands to fix it
-def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, constraints, move_up):
+def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, constraints, move_up, switch_back=True):
     overall_success = True
     cur_measure_number = measure_number
     should_return = False
@@ -272,8 +272,8 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
             # return when all chords with tie have been flipped
             # switch back if function created more errors
             if tie_type is not None and tie_type == 'start':
-                if new_errors > old_errors:
-                    _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints, not move_up)
+                if switch_back and new_errors >= old_errors:
+                    _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints, not move_up, switch_back=False)
                 return overall_success
 
         cur_measure_number -= 1
