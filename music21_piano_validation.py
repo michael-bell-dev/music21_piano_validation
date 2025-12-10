@@ -202,12 +202,9 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
         
         if not left_possible:
             if not right_possible:
-                if not tie_issue or tie_loop:
-                    # if both hands are impossible, the chord cannot be played
-                    color_notes(left_hand_notes, right_hand_notes, COLOR_ERROR)
-                    return left_hand_notes, right_hand_notes, False, last_left_tie_issue, last_right_tie_issue
-                elif tie_issue:
-                    tie_loop = True
+                # if both hands are impossible, the chord cannot be played
+                color_notes(left_hand_notes, right_hand_notes, COLOR_ERROR)
+                return left_hand_notes, right_hand_notes, False, last_left_tie_issue, last_right_tie_issue
                 
             right_hand_notes.insert(0, left_hand_notes.pop(0))
             
