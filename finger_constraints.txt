@@ -1,5 +1,5 @@
 'pinky', 'thumb', max_distance = 16, max_can_be_different_colors = False
 'pinky', 'index', max_distance = 11, max_can_be_different_colors = True
-'pinky', 'middle', max_distance = 7, max_can_be_different_colors = True
-'pinky', 'ring', max_distance = 4, max_can_be_different_colors = True
+'pinky', 'middle', max_distance = 8, max_can_be_different_colors = False
+'pinky', 'ring', max_distance = 5, max_can_be_different_colors = False
 'index', 'ring', max_distance = 8, max_can_be_different_colors = True
