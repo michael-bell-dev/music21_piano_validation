@@ -37,6 +37,7 @@ def check_constraints(notes, constraints, index_list):
             constraint_index1 = constraint[1]
 
             # if chord is only two fingers, ignore any constraint that isn't pinky and thumb
+            # assumes this will be the largest specified distance, so other constraints are irrelevant
             if two:
                 if constraint[0] not in [0, 4] or constraint[1] not in [0, 4]:
                     continue
@@ -58,6 +59,8 @@ def check_constraints(notes, constraints, index_list):
         return True
 
     # check finger distance constraints when 3 fingers are in use
+    # assumes thumb and pinky will always be used as they are assumed the largest gap
+    # best order to check is assumed to be index, ring, middle
     if len(index_list) == 3:
         for i in [1, 3, 2]:
             hand_is_possible = True
@@ -93,6 +96,8 @@ def check_constraints(notes, constraints, index_list):
         return False
     
     # check finger distance constraints when 4 fingers are in use
+    # assumes thumb and pinky will always be used as they are assumed the largest gap
+    # best order to check is assumed to be index+middle, middle+ring, index+ring
     for i in [[1, 2], [2, 3], [1, 3]]:
         hand_is_possible = True
         for constraint in constraints:
@@ -135,6 +140,8 @@ def check_constraints(notes, constraints, index_list):
 def check_spacing(notes, constraints):
     index_list = []
     i = 0
+    # assumes two adjacent white notes can be played by the same finger
+    # also assumes two adjacent black notes can be played by the thumb
     while i < len(notes) - 1:
         index_list.append(i)
         if (abs(notes[i].pitch.midi - notes[i + 1].pitch.midi) < 3):
@@ -146,11 +153,11 @@ def check_spacing(notes, constraints):
         index_list.pop()
     index_list.append(len(notes) - 1)
 
-    # impossible if number of fingers required is greater than 5
+    # assumed impossible if number of fingers required is greater than 5
     if len(index_list) > 5:
         return False
     
-    # definitely possible if number if fingers required is 0 or 1
+    # assumed possible if number if fingers required is 0 or 1
     if len(index_list) < 2:
         return True
 
@@ -159,6 +166,7 @@ def check_spacing(notes, constraints):
 
 
 # check if either hand has notes that are impossible to play and attempt to fix them
+# assumes all notes in the left hand are lower in pitch than all notes in the right hand
 # returns: left_hand_notes, right_hand_notes, success, left_tie_issue, right_tie_issue
 def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_notes, constraints):
     left_possible = False
@@ -218,10 +226,12 @@ def adjust_chord(left_hand_notes, right_hand_notes, last_left_notes, last_right_
     return left_hand_notes, right_hand_notes, True, None, None
 
 # If a chord is impossible due to ties, attempt to switch tied notes between hands to fix it
+# assumes it is best to move other notes as well to ensure that all notes in the left hand remain
+# lower in pitch than all notes in the right hand
+# returns: void
 def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, constraints, move_up, switch_back=True):
     overall_success = True
     cur_measure_number = measure_number
-    should_return = False
 
     old_errors = 0
     new_errors = 0
@@ -272,7 +282,7 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
                     color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_CORRECT)
 
             # return when all chords with tie have been flipped
-            # switch back if function created more errors
+            # switch back if function created more errors for clarity
             if tie_type is not None and tie_type == 'start':
                 if switch_back and new_errors >= old_errors:
                     _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints, not move_up, switch_back=False)
@@ -282,6 +292,7 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
         cur_measure_number -= 1
 
 # find the best place to split a chord into two hands
+# assumes the best starting point is the gap between notes
 # returns: left_hand_notes, right_hand_notes
 def find_split_point(chord_object):
     equal_ties = True
@@ -304,6 +315,9 @@ def find_split_point(chord_object):
     return left_hand_notes, right_hand_notes
 
 # main function to check if piece can be played by a piano
+# Traverses measure by measure/chord by chord, calling functions on the chords
+# Adds resulting chords to left- and right-hand parts
+# Also adds rests to prevent rhythm issues
 # returns: overall_success
 def check_playability(combined, right_hand, left_hand, constraints):
     overall_success = True
