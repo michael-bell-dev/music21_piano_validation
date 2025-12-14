@@ -239,6 +239,7 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
             tie_type = None
             chord_index -= 1
 
+            elements = []
             for problem_note_object in problem_chord_object.notes:
                 # Note is above/below the tie issue and should be moved
                 if (problem_note_object.pitch >= tie_issue and move_up) or (problem_note_object.pitch <= tie_issue and not move_up):
@@ -257,23 +258,25 @@ def switch_ties(destination_hand, problem_hand, tie_issue, measure_number, const
                         elements[chord_index].quarterLength = problem_note_object.quarterLength
                     elements[chord_index].add(deepcopy(problem_note_object))
 
-            # check possible chords and recolor accordingly
-            notes_to_check = list(elements[chord_index].notes)
-            if move_up:
-                notes_to_check.reverse()
-            destination_possible = check_spacing(elements[chord_index].notes, constraints)
-            if not destination_possible:
-                color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_ERROR)
-                overall_success = False
-                new_errors += 1
-            else:
-                color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_CORRECT)
+            if len(elements) != 0:
+                # check possible chords and recolor accordingly
+                notes_to_check = list(elements[chord_index].notes)
+                if move_up:
+                    notes_to_check.reverse()
+                destination_possible = check_spacing(elements[chord_index].notes, constraints)
+                if not destination_possible:
+                    color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_ERROR)
+                    overall_success = False
+                    new_errors += 1
+                else:
+                    color_notes(elements[chord_index].notes, problem_chord_object.notes, COLOR_CORRECT)
 
             # return when all chords with tie have been flipped
             # switch back if function created more errors
             if tie_type is not None and tie_type == 'start':
                 if switch_back and new_errors >= old_errors:
                     _ = switch_ties(problem_hand, destination_hand, tie_issue, measure_number, constraints, not move_up, switch_back=False)
+                    print(f'Reverting tied note {tie_issue} move')
                 return overall_success
 
         cur_measure_number -= 1
@@ -368,10 +371,10 @@ def check_playability(combined, right_hand, left_hand, constraints):
                 # checks if failure is due to a tied note being forced into one hand by seeing if the
                 # previous tied notes can be switched to the other hand to fix the issue
                 if left_tie_issue is not None:
-                    print(f'Switching tied note {left_tie_issue} in measure {measure.number} from right hand to left hand. Other chords may become impossible in the process.')
+                    print(f'Switching tied note {left_tie_issue} from right hand to left hand - Measure: {measure.number} Offset: {chord_object.offset}')
                     overall_success = switch_ties(left_hand, right_hand, left_tie_issue, measure.number, constraints, False) and overall_success
                 elif right_tie_issue is not None:
-                    print(f'Switching tied note {right_tie_issue} in measure {measure.number} from left hand to right hand. Other chords may become impossible in the process.')
+                    print(f'Switching tied note {right_tie_issue} from left hand to right hand - Measure: {measure.number} Offset: {chord_object.offset}')
                     overall_success = switch_ties(right_hand, left_hand, right_tie_issue, measure.number, constraints, True) and overall_success
                 else:
                     overall_success = False
